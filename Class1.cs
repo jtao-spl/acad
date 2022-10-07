@@ -2,18 +2,13 @@
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Runtime;
-using Autodesk.AutoCAD.Geometry;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static acad01.AcdBaseTool;
 using static acad01.TextTools;
-using Excel = NetOffice.ExcelApi;
+//using Excel = NetOffice.ExcelApi;
 using System.IO;
-using System.Security.AccessControl;
-using MySql.Data.MySqlClient;
+
 
 namespace acad01
 {
@@ -48,6 +43,7 @@ namespace acad01
             this.generatePingCeTable(sSet);
 
         }
+
         public void generatePingCeTable(SelectionSet sSet)
         {
             List<SizedElement> ses = new List<SizedElement>();
@@ -76,7 +72,7 @@ namespace acad01
                             if (mtext.Contents.Contains(TextSpecialSymbol.Degree))
                             {
                                 SizedElement e = new SizedElement();
-                                e.sizeType = "angle";
+                                e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.ANGLE;
                                 e.baseSize = Convert.ToDecimal(mtext.Contents.Replace(TextSpecialSymbol.Degree, ""));
                                 ses.Add(e);
 
@@ -86,7 +82,7 @@ namespace acad01
                                 if (mtext.Text.StartsWith("∅"))
                                 {
                                     SizedElement e = new SizedElement();
-                                    e.sizeType = "D";
+                                    e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
                                     //格式："%%C{\\Ftxt,@extfont2|c134;15.6}"
 
 
@@ -119,7 +115,7 @@ namespace acad01
 
                                     //{\\fSimSun|b0|i0|c134|p2;6×}∅22{\\H0.6x;\\S+0,15^ 0;}
                                     SizedElement e = new SizedElement();
-                                    e.sizeType = "D";
+                                    e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
                                     string[] split1 = mtext.Text.Split('∅');
 
                                     decimal count = Convert.ToDecimal(split1[0].ExtractNumber());
@@ -155,7 +151,7 @@ namespace acad01
                             else if (mtext.Text.StartsWith("R"))
                             {
                                 SizedElement e2 = new SizedElement();
-                                e2.sizeType = "R";
+                                e2.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.RADIAL;
                                 e2.baseSize = Convert.ToDecimal(mtext.Text.Substring(1));
                                 ses.Add(e2);
 
@@ -189,11 +185,11 @@ namespace acad01
                             SizedElement ele = new SizedElement();
                             if (rotatedDimension.Prefix == "%%c")
                             {
-                                ele.sizeType = "D";//直径
+                                ele.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;//直径
                             }
                             else
                             {
-                                ele.sizeType = "L";//直线
+                                ele.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.LINE;//直线
                             }
                             ele.baseSize = Convert.ToDecimal(rotatedDimension.Measurement);
                             if (rotatedDimension.Dimtol)
@@ -216,7 +212,7 @@ namespace acad01
                             RadialDimension rdimension = (RadialDimension)ent;
                             SizedElement element1 = new SizedElement();
                             element1.baseSize = Convert.ToDecimal(rdimension.Measurement);
-                            element1.sizeType = "R";
+                            element1.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.ANGLE;
                             if (rdimension.Dimtol)
                             {
                                 element1.upperSize = Convert.ToDecimal(rdimension.Dimtp);
@@ -233,7 +229,7 @@ namespace acad01
                             DiametricDimension dDimension = (DiametricDimension)ent;
                             SizedElement element2 = new SizedElement();
                             element2.baseSize = Convert.ToDecimal(dDimension.Measurement);
-                            element2.sizeType = "D";
+                            element2.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
                             if (dDimension.Dimtol)
                             {
                                 element2.upperSize = Convert.ToDecimal(dDimension.Dimtp);
@@ -250,7 +246,14 @@ namespace acad01
                         case "FeatureControlFrame":
                             FeatureControlFrame featureControlFrame = (FeatureControlFrame)ent;
                             GeometricalTolerance gt = new GeometricalTolerance();
-                            gt.TonerancePrecision = featureControlFrame.Text.ExtractValue("Tolerance");
+                            string rawText = featureControlFrame.Text;
+                            string[] rawTextArr = rawText.Split("%%v".ToCharArray());
+                            string finalVal = "";
+                            for (int m = 1; m < rawTextArr.Length; m++)
+                            {
+                                finalVal += rawTextArr[m];
+                            }
+                            gt.TonerancePrecision = finalVal;
                             gt.ToneranceType = featureControlFrame.Text.Substring(7, 1);
                             gts.Add(gt);
 
@@ -270,35 +273,46 @@ namespace acad01
             element.otherRequirements = ors.ToArray();
             element.geometricalTolerances = gts.ToArray();
             element.safetyRequirements = secs.ToArray();
-            this.SaveElementToExcel(element);
+            //this.SaveElementToExcel(element);
+            ComponentTool tool = new ComponentTool();
+            int ComponentId = tool.CreateComponent();
+            tool.CreateComponentSize(ComponentId, element);
+
+            string fileName = Path.GetFileName(db.Filename);
+            FileStream fs = new FileStream(db.Filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            BinaryReader br = new BinaryReader(fs);
+            byte[] content = br.ReadBytes((int)fs.Length);
+            br.Close();
+            fs.Close();
+            tool.SaveOriginFile(ComponentId, fileName, content);
         }
-        public void SaveElementToExcel(Element element)
-        {
-            Database db = HostApplicationServices.WorkingDatabase;
-            Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
-            string directoryName = Path.GetDirectoryName(db.Filename);
-            string fileName = Path.GetFileNameWithoutExtension(db.Filename);
-            PromptSaveFileOptions opt = new PromptSaveFileOptions("save excel file");
-            opt.DialogCaption = "Save Excel";
-            opt.Filter = "Excel 97-2003 工作簿(*.xls)|*.xls|Excel工作簿(*.xlsx)|*.xlsx";
-            opt.FilterIndex = 1;
-            opt.InitialDirectory = directoryName;
-            opt.InitialFileName = fileName;
-            PromptFileNameResult pfr = ed.GetFileNameForSave(opt);
-            if (pfr.Status != PromptStatus.OK) return;
-            fileName = pfr.StringResult;
-            //Directory.SetAccessControl(Path.GetDirectoryName(fileName), new DirectorySecurity(directoryName, AccessControlSections.All));
-            Excel.Application excelApp = new Excel.Application();
-            Excel.Workbook book = excelApp.Workbooks.Add();
-            Excel.Worksheet sheet = (Excel.Worksheet)book.Worksheets.Add();
-            ExcelTool.DrawElements(element, sheet, 3, 5);
-            book.SaveAs(fileName);
-            excelApp.Quit();
-            excelApp.Dispose();
-        }
+
+        //public void SaveElementToExcel(Element element)
+        //{
+        //    Database db = HostApplicationServices.WorkingDatabase;
+        //    Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
+        //    string directoryName = Path.GetDirectoryName(db.Filename);
+        //    string fileName = Path.GetFileNameWithoutExtension(db.Filename);
+        //    PromptSaveFileOptions opt = new PromptSaveFileOptions("save excel file");
+        //    opt.DialogCaption = "Save Excel";
+        //    opt.Filter = "Excel 97-2003 工作簿(*.xls)|*.xls|Excel工作簿(*.xlsx)|*.xlsx";
+        //    opt.FilterIndex = 1;
+        //    opt.InitialDirectory = directoryName;
+        //    opt.InitialFileName = fileName;
+        //    PromptFileNameResult pfr = ed.GetFileNameForSave(opt);
+        //    if (pfr.Status != PromptStatus.OK) return;
+        //    fileName = pfr.StringResult;
+        //    //Directory.SetAccessControl(Path.GetDirectoryName(fileName), new DirectorySecurity(directoryName, AccessControlSections.All));
+        //    Excel.Application excelApp = new Excel.Application();
+        //    Excel.Workbook book = excelApp.Workbooks.Add();
+        //    Excel.Worksheet sheet = (Excel.Worksheet)book.Worksheets.Add();
+        //    ExcelTool.DrawElements(element, sheet, 3, 5);
+        //    book.SaveAs(fileName);
+        //    excelApp.Quit();
+        //    excelApp.Dispose();
+        //}
         public void SaveElementsToDb(Element element)
         {
-            MySqlConnection conn = new MysqlTool().getConnection();
 
         }
         private void PrintProperty(SelectionSet sSet)
@@ -391,7 +405,7 @@ namespace acad01
     }
     public class SizedElement
     {
-        public string sizeType { get; set; }
+        public ELEMENT_SIZED_ELEMENT_SUB_TYPE sizeType { get; set; }
         public decimal baseSize { get; set; }
         public decimal upperSize { get; set; }
         public decimal lowerSize { get; set; }
@@ -457,6 +471,28 @@ namespace acad01
         Middle = 1,
         Rought = 2,
         MostRought = 3,
+    }
+    public enum ELEMENT_FIRST_TYPE
+    {
+        SIZED_ELEMENT,
+        GEOMETRICAL_TOLERNACE,
+        SURFACE_ROUGHNESS,
+        OTHER
+    }
+    public enum ELEMENT_SIZED_ELEMENT_SUB_TYPE
+    {
+        LINE,
+        DIAMETER,
+        RADIAL,
+        ANGLE,
+    }
+    public enum ELEMENT_GEO_TOLERANCE_SUB_TYPE
+    {
+        A
+    }
+    public enum ELEMENT_SURFACE_ROUGHNESS_SUB_TYPE
+    {
+        RA
     }
 
 }

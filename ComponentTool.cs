@@ -108,7 +108,13 @@ namespace acad01
                     $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.SURFACE_ROUGHNESS}," +
                     $"\"{e.surfaceRoughnesses[i].RoughnessType}\",\"{e.surfaceRoughnesses[i].RoughnessValue}\")");
             }
-
+            for (int i = 0; i < e.otherRequirements.Length; i++)
+            {
+                sqls.Add($"insert into t_component_size" +
+                    $"(ComponentId,FirstType,OtherRequirements) values(" +
+                    $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.OTHER},\"{e.otherRequirements[i].requirement}\"" +
+                    $")");
+            }
             executeInsert(sqls.ToArray());
         }
 

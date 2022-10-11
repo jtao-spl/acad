@@ -19,7 +19,6 @@ namespace acad01
         {
             Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
             Database db = HostApplicationServices.WorkingDatabase;
-            ed.WriteMessage("hello world");
             //PromptSelectionResult psr = ed.SelectAll();
             // (enget (car (entsel)))    //获取图元数据
 
@@ -36,10 +35,7 @@ namespace acad01
             PromptSelectionResult psr = ed.GetSelection(sfilter);
             if (psr.Status != PromptStatus.OK) return;
             SelectionSet sSet = psr.Value;
-            this.PrintProperty(sSet);
-            
-
-            
+            //this.PrintProperty(sSet);
             this.generatePingCeTable(sSet);
 
         }
@@ -171,9 +167,9 @@ namespace acad01
                             }
                             else
                             {
-                                OtherRequirement oreq = new OtherRequirement();
-                                oreq.requirement = mtext.Text;
-                                ors.Add(oreq);
+                                //OtherRequirement oreq = new OtherRequirement();
+                                //oreq.requirement = mtext.Text;
+                                //ors.Add(oreq);
                             }
 
                             break;
@@ -311,74 +307,67 @@ namespace acad01
         //    excelApp.Quit();
         //    excelApp.Dispose();
         //}
-        public void SaveElementsToDb(Element element)
-        {
-
-        }
-        private void PrintProperty(SelectionSet sSet)
-        {
-            ObjectId[] ids = sSet.GetObjectIds();
-            Database db = HostApplicationServices.WorkingDatabase;
-            Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
-            using (Transaction trans = db.TransactionManager.StartTransaction())
-            {
-                for (int i = 0; i < ids.Length; i++)
-                {
-                    Entity ent = (Entity)ids[i].GetObject(OpenMode.ForRead);
-                    string ent_type = ent.GetType().Name;
-                    switch (ent_type)
-                    {
-                        case "MText":
-                            MText mtext = (MText)ent;
-                            ed.WriteMessage("mtext:" + mtext.Text + "\n");
-
-                            Console.WriteLine(mtext.Text);
-                            break;
-                        case "RotatedDimension":
-                            //Dimtm Specifies the minimum tolerance limit for dimension text.
-                            //Dimtp Specifies the maximum tolerance limit for dimension text.
-                            RotatedDimension rotatedDimension = (RotatedDimension)ent;
-                            ed.WriteMessage("rotatedDimension.Prefix==\\%\\%c, ");
-                            ed.WriteMessage("rotatedDimension.Prefix:" + rotatedDimension.Prefix + "rotatedDimension:" + Convert.ToDecimal(rotatedDimension.Measurement) + ", upper:" + rotatedDimension.Dimtp + ",lowder:" + rotatedDimension.Dimtm + "\n");
-                            //LinearDimension linearDimension = new LinearDimension(rotatedDimension.Measurement, rotatedDimension.Dimtm, rotatedDimension.Dimtp);
-                            //linearDimension.Print();
-                            break;
-                        case "RadialDimension"://角度标注
-                            RadialDimension rdimension = (RadialDimension)ent;
-                            ed.WriteMessage("RadialDimension.Measurement" + rdimension.Measurement);
-                            break;
-                        case "FeatureControlFrame":
-                            FeatureControlFrame featureControlFrame = (FeatureControlFrame)ent;
-                            ed.WriteMessage(featureControlFrame.Text);
-                            break;
-                        default:
-                            ed.WriteMessage(ent.ToString() + "\n");
-                            break;
-                    }
 
 
-                }
-                trans.Commit();
-            }
-        }
-        private void ProcessMText(MText mText)
-        {
-            string text = mText.Text;
-        }
+        //private void PrintProperty(SelectionSet sSet)
+        //{
+        //    ObjectId[] ids = sSet.GetObjectIds();
+        //    Database db = HostApplicationServices.WorkingDatabase;
+        //    Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
+        //    using (Transaction trans = db.TransactionManager.StartTransaction())
+        //    {
+        //        for (int i = 0; i < ids.Length; i++)
+        //        {
+        //            Entity ent = (Entity)ids[i].GetObject(OpenMode.ForRead);
+        //            string ent_type = ent.GetType().Name;
+        //            switch (ent_type)
+        //            {
+        //                case "MText":
+        //                    MText mtext = (MText)ent;
+        //                    ed.WriteMessage("mtext:" + mtext.Text + "\n");
 
+        //                    Console.WriteLine(mtext.Text);
+        //                    break;
+        //                case "RotatedDimension":
+        //                    //Dimtm Specifies the minimum tolerance limit for dimension text.
+        //                    //Dimtp Specifies the maximum tolerance limit for dimension text.
+        //                    RotatedDimension rotatedDimension = (RotatedDimension)ent;
+        //                    ed.WriteMessage("rotatedDimension.Prefix==\\%\\%c, ");
+        //                    ed.WriteMessage("rotatedDimension.Prefix:" + rotatedDimension.Prefix + "rotatedDimension:" + Convert.ToDecimal(rotatedDimension.Measurement) + ", upper:" + rotatedDimension.Dimtp + ",lowder:" + rotatedDimension.Dimtm + "\n");
+        //                    //LinearDimension linearDimension = new LinearDimension(rotatedDimension.Measurement, rotatedDimension.Dimtm, rotatedDimension.Dimtp);
+        //                    //linearDimension.Print();
+        //                    break;
+        //                case "RadialDimension"://角度标注
+        //                    RadialDimension rdimension = (RadialDimension)ent;
+        //                    ed.WriteMessage("RadialDimension.Measurement" + rdimension.Measurement);
+        //                    break;
+        //                case "FeatureControlFrame":
+        //                    FeatureControlFrame featureControlFrame = (FeatureControlFrame)ent;
+        //                    ed.WriteMessage(featureControlFrame.Text);
+        //                    break;
+        //                default:
+        //                    ed.WriteMessage(ent.ToString() + "\n");
+        //                    break;
+        //            }
+
+
+        //        }
+        //        trans.Commit();
+        //    }
+        //}
 
     }
-    public class PingCeTable
-    {
-        public ExamSample examSample;
-        public ExamBaseInfo baseInfo;
-        public ScoreRule scoreRule;
-        public Element element;
-        public List<Evalueation> evalueations;
-        public void addSizedElement(MText mtext) { }
-        public void addSizedElement(RotatedDimension rotatedDim) { }
+    //public class PingCeTable
+    //{
+    //    public ExamSample examSample;
+    //    public ExamBaseInfo baseInfo;
+    //    public ScoreRule scoreRule;
+    //    public Element element;
+    //    public List<Evalueation> evalueations;
+    //    public void addSizedElement(MText mtext) { }
+    //    public void addSizedElement(RotatedDimension rotatedDim) { }
 
-    }
+    //}
     public class ExamSample
     {
         public int titleRowNo;//开始绘制的行数
@@ -409,17 +398,17 @@ namespace acad01
         public decimal baseSize { get; set; }
         public decimal upperSize { get; set; }
         public decimal lowerSize { get; set; }
-        public decimal totalElementScore { get; set; }//manual setting
-        public ToleraceLevel toleranceLevel { get; set; }
-        public decimal CalculateDelta()
-        {
-            if (this.upperSize == 0 && this.lowerSize == 0)
-            {
-                decimal delta = AcdBaseTool.CalculateDeltaByToleranceLevelAndSizeField(this.toleranceLevel, this.baseSize.getSizeField());
-                return delta;
-            }
-            return 0;
-        }
+        //public decimal totalElementScore { get; set; }//manual setting
+        //public ToleraceLevel toleranceLevel { get; set; }
+        //public decimal CalculateDelta()
+        //{
+        //    if (this.upperSize == 0 && this.lowerSize == 0)
+        //    {
+        //        decimal delta = AcdBaseTool.CalculateDeltaByToleranceLevelAndSizeField(this.toleranceLevel, this.baseSize.getSizeField());
+        //        return delta;
+        //    }
+        //    return 0;
+        //}
 
     }
 
@@ -427,25 +416,25 @@ namespace acad01
     {
         public string ToneranceType; //公差类型
         public string TonerancePrecision;//公差精度,可能带有直径符号
-        public decimal totalElementScore;//manual setting
+        //public decimal totalElementScore;//manual setting
 
     }
     public struct SurfaceRoughness//表面粗糙度
     {
         public string RoughnessType;
         public string RoughnessValue;
-        public decimal totalElementScore;//manual setting
+        //public decimal totalElementScore;//manual setting
 
     }
     public struct OtherRequirement
     {
         public string requirement;//其他要求
-        public decimal totalElementScore;
+        //public decimal totalElementScore;
     }
     public struct SafetyRequirement
     {
         public string safetyRequirement;
-        public decimal totalElementScore;
+        //public decimal totalElementScore;
     }
     public struct Element
     {

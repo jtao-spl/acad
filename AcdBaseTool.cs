@@ -8,7 +8,7 @@ using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Runtime;
 using Autodesk.AutoCAD.Geometry;
 
-namespace acad01
+namespace acad
 {
     public static partial class AcdBaseTool
     {

@@ -1,7 +1,7 @@
 ﻿using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace acad01
+namespace acad
 {
     /// <summary>
     /// 特殊字符

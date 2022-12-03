@@ -10,7 +10,7 @@ using static acad01.TextTools;
 using System.IO;
 
 
-namespace acad01
+namespace acad
 {
     public class Main
     {

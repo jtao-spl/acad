@@ -5,6 +5,11 @@ VisualStudioVersion = 16.0.32802.440
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "acad01", "acad01.csproj", "{6A32FFA1-F7C5-4B4F-93C0-6720038BA0B2}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{7257AEF6-1AA2-4AD7-896B-E9D5920D8D51}"
+	ProjectSection(SolutionItems) = preProject
+		ApiConfHelper.cs = ApiConfHelper.cs
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

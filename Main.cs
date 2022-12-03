@@ -12,10 +12,10 @@ using System.IO;
 
 namespace acad01
 {
-    public class Class1
+    public class Main
     {
         [CommandMethod("SelectDim")]
-        public void SelectDemo()
+        public void Select()
         {
             Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
             Database db = HostApplicationServices.WorkingDatabase;
@@ -37,7 +37,7 @@ namespace acad01
             SelectionSet sSet = psr.Value;
             //this.PrintProperty(sSet);
             this.generatePingCeTable(sSet);
-
+            ed.WriteMessage("数据提取成功，请在系统中进行进一步操作。");
         }
 
         public void generatePingCeTable(SelectionSet sSet)
@@ -281,6 +281,7 @@ namespace acad01
             br.Close();
             fs.Close();
             tool.SaveOriginFile(ComponentId, fileName, content);
+            
         }
 
         //public void SaveElementToExcel(Element element)

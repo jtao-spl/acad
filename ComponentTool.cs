@@ -86,7 +86,7 @@ namespace acad01
         }
         public int CreateComponent()
         {
-            string name = $"零件{ String.Format("{0:yyyyMMddHHmm}", DateTime.Now)}";
+            string name = $"零件{ String.Format("{0:yyyyMMddHHmmss}", DateTime.Now)}";
             string sql = $"insert into t_component(ComponentName) values(\"{name}\")";
             List<string> sqls = new List<string>();
             sqls.Add(sql);

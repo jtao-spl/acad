@@ -5,10 +5,9 @@ using Autodesk.AutoCAD.Runtime;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using static acad01.TextTools;
+using static acad.TextTools;
 //using Excel = NetOffice.ExcelApi;
 using System.IO;
-
 
 namespace acad
 {

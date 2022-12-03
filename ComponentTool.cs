@@ -9,13 +9,24 @@ namespace acad01
     {
         private string getConnectionString()
         {
+       
             MySqlConnectionStringBuilder builder = new MySqlConnectionStringBuilder();
-            builder.Server = "localhost";
-            builder.Port = 3306;
-            builder.UserID = "root";
-            builder.Password = "KTIpdx91@1";
+            uint port;
+            builder.Server = APIConfHelper.DBSettings["Server"].ToString();
+            try
+            {
+                port = uint.Parse(APIConfHelper.DBSettings["Port"].ToString());
+            }
+            catch (FormatException)
+            {
+
+                throw new Exception("数据库链接配置异常：Port非整数。");
+            }
+            builder.Port = port;
+            builder.UserID = APIConfHelper.DBSettings["UserID"].ToString();
+            builder.Password = APIConfHelper.DBSettings["Password"].ToString();
             builder.Pooling = false;
-            builder.Database = "db_pingce";
+            builder.Database = APIConfHelper.DBSettings["Database"].ToString();
             return builder.ConnectionString;
         }
 

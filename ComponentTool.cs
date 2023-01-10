@@ -112,20 +112,33 @@ namespace acad
                     $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.GEOMETRICAL_TOLERNACE}," +
                     $"\"{e.geometricalTolerances[i].ToneranceType}\",\"{e.geometricalTolerances[i].TonerancePrecision}\")");
             }
-            for (int i = 0; i < e.surfaceRoughnesses.Length; i++)
+            //for (int i = 0; i < e.surfaceRoughnesses.Length; i++)
+            //{
+            //    sqls.Add($"insert into t_component_size" +
+            //        $"(ComponentId,FirstType,SurfaceRoughnessType,SurfaceRoughnessVal) values(" +
+            //        $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.SURFACE_ROUGHNESS}," +
+            //        $"\"{e.surfaceRoughnesses[i].RoughnessType}\",\"{e.surfaceRoughnesses[i].RoughnessValue}\")");
+            //}
+            foreach(var item in e.surfaceRoughnesses)
             {
                 sqls.Add($"insert into t_component_size" +
-                    $"(ComponentId,FirstType,SurfaceRoughnessType,SurfaceRoughnessVal) values(" +
+                    $"(ComponentId,FirstType,SurfaceRoughnessType,SurfaceRoughnessVal,SurfaceRoughnessCount) values(" +
                     $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.SURFACE_ROUGHNESS}," +
-                    $"\"{e.surfaceRoughnesses[i].RoughnessType}\",\"{e.surfaceRoughnesses[i].RoughnessValue}\")");
+                    $"\"Ra\",\"{item.Key}\",{item.Value})");
+
             }
-            for (int i = 0; i < e.otherRequirements.Length; i++)
-            {
-                sqls.Add($"insert into t_component_size" +
-                    $"(ComponentId,FirstType,OtherRequirements) values(" +
-                    $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.OTHER},\"{e.otherRequirements[i].requirement}\"" +
+            //for (int i = 0; i < e.otherRequirements.Length; i++)
+            //if (e.otherRequirements.Length > 0)
+            //{
+            //    sqls.Add($"insert into t_component_size" +
+            //        $"(ComponentId,FirstType,OtherRequirements) values(" +
+            //        $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.OTHER},0" +
+            //        $")");
+            //}
+            sqls.Add($"insert into t_component_size" +
+                    $"(ComponentId,FirstType,UnDeclaredChamferCount) values(" +
+                    $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.OTHER},0" +
                     $")");
-            }
             executeInsert(sqls.ToArray());
         }
 

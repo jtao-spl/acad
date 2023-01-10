@@ -32,17 +32,53 @@ namespace acad
             };
             SelectionFilter sfilter = new SelectionFilter(values);
             PromptSelectionResult psr = ed.GetSelection(sfilter);
+            //PromptSelectionResult psr = ed.GetSelection();
             if (psr.Status != PromptStatus.OK) return;
             SelectionSet sSet = psr.Value;
             //this.PrintProperty(sSet);
             this.generatePingCeTable(sSet);
             ed.WriteMessage("数据提取成功，请在系统中进行进一步操作。");
         }
+        public void PrintProperty(SelectionSet sSet)
+        {
+            //ObjectId[] ids = sSet.GetObjectIds();
+            //Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
+            //Database db = HostApplicationServices.WorkingDatabase;
 
+            //for (int i = 0; i < ids.Length; i++)
+            //{
+            //    using (Transaction trans = db.TransactionManager.StartTransaction())
+            //    {
+
+            //        //Entity ent = (Entity)ids[i].GetObject(OpenMode.ForRead, true);
+            //        Entity ent = (Entity)trans.GetObject(ids[i], OpenMode.ForRead, false);
+            //        string ent_type = ent.GetType().Name;
+            //        switch (ent_type)
+            //        {
+            //            case "BlockReference":
+            //                BlockTableRecord btr = null;
+            //                if (trans.GetObject(ids[i], OpenMode.ForRead) is BlockReference)
+            //                {
+            //                    BlockReference blkRef = (BlockReference)trans.GetObject(ids[i], OpenMode.ForRead);
+            //                    blkRef.att
+            //                    BlockTableRecord  btr1 = (BlockTableRecord)trans.GetObject(blkRef.BlockTableRecord, OpenMode.ForRead);
+                 
+
+            //                }
+                                
+            //                    break;
+            //            default:
+            //                break;
+            //        }
+            //        trans.Commit();
+            //    }
+            //}
+        }
         public void generatePingCeTable(SelectionSet sSet)
         {
             List<SizedElement> ses = new List<SizedElement>();
-            List<SurfaceRoughness> srs = new List<SurfaceRoughness>();
+            Dictionary<string, int> srs = new Dictionary<string, int>();
+            //List<SurfaceRoughness> srs = new List<SurfaceRoughness>();
             List<OtherRequirement> ors = new List<OtherRequirement>();
             List<GeometricalTolerance> gts = new List<GeometricalTolerance>();
             List<SafetyRequirement> secs = new List<SafetyRequirement>();
@@ -57,7 +93,7 @@ namespace acad
                 {
                     
                     //Entity ent = (Entity)ids[i].GetObject(OpenMode.ForRead, true);
-                    Entity ent = (Entity)trans.GetObject(ids[i],OpenMode.ForRead, false);
+                    Entity ent = (Entity)trans.GetObject(ids[i],OpenMode.ForWrite, false);
                     string ent_type = ent.GetType().Name;
                     switch (ent_type)
                     {
@@ -137,10 +173,19 @@ namespace acad
                             }
                             else if (mtext.Text.StartsWith("Ra"))
                             {
-                                SurfaceRoughness sr = new SurfaceRoughness();
-                                sr.RoughnessType = "Ra";
-                                sr.RoughnessValue = mtext.Text.Substring(2);
-                                srs.Add(sr);
+                                string RoughnessValue = mtext.Text.Substring(2);
+                                if (srs.ContainsKey(RoughnessValue))
+                                {
+                                    srs[RoughnessValue] = srs[RoughnessValue] + 1;
+                                }
+                                else
+                                {
+                                    srs.Add(RoughnessValue, 1);
+                                }
+                                //SurfaceRoughness sr = new SurfaceRoughness();
+                                //sr.RoughnessType = "Ra";
+                                //sr.RoughnessValue = mtext.Text.Substring(2);
+                                //srs.Add(sr);
 
                             }
                             else if (mtext.Text.StartsWith("R"))
@@ -151,13 +196,13 @@ namespace acad
                                 ses.Add(e2);
 
                             }
-                            else if (mtext.Text.Contains("min") || mtext.Text.Contains("max"))
-                            {
-                                SurfaceRoughness sr = new SurfaceRoughness();
-                                sr.RoughnessType = "Ra";
-                                sr.RoughnessValue = mtext.Text;
-                                srs.Add(sr);
-                            }
+                            //else if (mtext.Text.Contains("min") || mtext.Text.Contains("max"))
+                            //{
+                            //    SurfaceRoughness sr = new SurfaceRoughness();
+                            //    sr.RoughnessType = "Ra";
+                            //    sr.RoughnessValue = mtext.Text;
+                            //    srs.Add(sr);
+                            //}
                             else if (mtext.Text.Contains("技术要求"))
                             {
                                 OtherRequirement oreq = new OtherRequirement();
@@ -253,6 +298,10 @@ namespace acad
                             gts.Add(gt);
 
                             break;
+                        case "BlockReference":
+                            BlockReference blockReference = (BlockReference)ent;
+                            
+                            break;
                         default:
                             //ed.WriteMessage(ent.ToString() + "\n");
                             break;
@@ -264,7 +313,8 @@ namespace acad
             }
             Element element = new Element();
             element.sizedElements = ses.ToArray();
-            element.surfaceRoughnesses = srs.ToArray();
+            //element.surfaceRoughnesses = srs.ToArray();
+            element.surfaceRoughnesses = srs;
             element.otherRequirements = ors.ToArray();
             element.geometricalTolerances = gts.ToArray();
             element.safetyRequirements = secs.ToArray();
@@ -441,7 +491,8 @@ namespace acad
 
         public SizedElement[] sizedElements;
         public GeometricalTolerance[] geometricalTolerances;
-        public SurfaceRoughness[] surfaceRoughnesses;
+        //public SurfaceRoughness[] surfaceRoughnesses;
+        public Dictionary<string, int> surfaceRoughnesses;
         public OtherRequirement[] otherRequirements;
         public SafetyRequirement[] safetyRequirements;
     }

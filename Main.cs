@@ -8,6 +8,7 @@ using System.Linq;
 using static acad.TextTools;
 //using Excel = NetOffice.ExcelApi;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace acad
 {
@@ -27,12 +28,13 @@ namespace acad
                 new TypedValue((int)DxfCode.Start,"TOLERANCE"),
                 new TypedValue((int)DxfCode.Start,"TEXT"),
                 new TypedValue((int)DxfCode.Start,"DIMENSION"),
+                 new TypedValue((int)DxfCode.Start, "INSERT"),
                 new TypedValue((int)DxfCode.Operator,"or>"),
 
             };
             SelectionFilter sfilter = new SelectionFilter(values);
-            PromptSelectionResult psr = ed.GetSelection(sfilter);
-            //PromptSelectionResult psr = ed.GetSelection();
+            //PromptSelectionResult psr = ed.GetSelection(sfilter);
+            PromptSelectionResult psr = ed.GetSelection();
             if (psr.Status != PromptStatus.OK) return;
             SelectionSet sSet = psr.Value;
             //this.PrintProperty(sSet);
@@ -41,45 +43,275 @@ namespace acad
         }
         public void PrintProperty(SelectionSet sSet)
         {
-            //ObjectId[] ids = sSet.GetObjectIds();
-            //Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
-            //Database db = HostApplicationServices.WorkingDatabase;
+            ObjectId[] ids = sSet.GetObjectIds();
+            Editor ed = Application.DocumentManager.MdiActiveDocument.Editor;
+            Database db = HostApplicationServices.WorkingDatabase;
 
-            //for (int i = 0; i < ids.Length; i++)
-            //{
-            //    using (Transaction trans = db.TransactionManager.StartTransaction())
-            //    {
+            for (int i = 0; i < ids.Length; i++)
+            {
+                using (Transaction trans = db.TransactionManager.StartTransaction())
+                {
 
-            //        //Entity ent = (Entity)ids[i].GetObject(OpenMode.ForRead, true);
-            //        Entity ent = (Entity)trans.GetObject(ids[i], OpenMode.ForRead, false);
-            //        string ent_type = ent.GetType().Name;
-            //        switch (ent_type)
-            //        {
-            //            case "BlockReference":
-            //                BlockTableRecord btr = null;
-            //                if (trans.GetObject(ids[i], OpenMode.ForRead) is BlockReference)
-            //                {
-            //                    BlockReference blkRef = (BlockReference)trans.GetObject(ids[i], OpenMode.ForRead);
-            //                    blkRef.att
-            //                    BlockTableRecord  btr1 = (BlockTableRecord)trans.GetObject(blkRef.BlockTableRecord, OpenMode.ForRead);
-                 
+                    //entity ent = (entity)ids[i].getobject(openmode.forread, true);
+                    Entity ent = (Entity)trans.GetObject(ids[i], OpenMode.ForRead, false);
+                    if(ent.GetType() == typeof(BlockReference))
+                    { 
+                        DBObjectCollection entitySets = new DBObjectCollection();
+                        ent.Explode(entitySets);
+                        string text = "";
+                        foreach (Entity explodedObj in entitySets)
+                        {
+                            // if the exploded entity is a blockref or mtext
+                            // then explode again
+                            if (explodedObj.GetType() == typeof(MText))
+                            {
+                                text += ((MText)explodedObj).Text;
+                            }
+                        }
+                        ed.WriteMessage("提取块参照中的文字:" + text + "\n");
+                    }
+                    //BlockTable bt = db.BlockTableId.GetObject(OpenMode.ForRead) as BlockTable;
+                    //string ent_type = ent.GetType().Name;
+                    //switch (ent_type)
+                    //{
+                    //    case "blockreference":
+                    //        BlockReference btr = null;
+                    //        if (trans.GetObject(ids[i], OpenMode.ForRead) is BlockReference)
+                    //        {
+                    //        }
 
-            //                }
-                                
-            //                    break;
-            //            default:
-            //                break;
-            //        }
-            //        trans.Commit();
-            //    }
-            //}
+                    //        break;
+                    //    default:
+                    //        break;
+                    //}
+                    trans.Commit();
+                }
+            }
         }
+
+         /**
+         * 输入mtext的文本,返回角度数据
+         */
+        public SizedElement ExtractAngleFromString(string text)
+        {
+            SizedElement e = new SizedElement();
+            e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.ANGLE;
+            e.baseSize = Convert.ToDecimal(text.Replace(TextSpecialSymbol.Degree, ""));
+            return e;
+        }
+        /**
+         * 输入mtext的文本,返回直径数据
+         */
+        public SizedElement ExtractDiameterFromString(string origin)
+        {
+            SizedElement e = new SizedElement();
+            e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
+            //格式："%%C{\\Ftxt,@extfont2|c134;15.6}"
+
+            if (origin.Contains('+') && origin.Contains('/'))
+            {
+                string[] split2 = origin.Split('+');
+                e.baseSize = Convert.ToDecimal(split2[0]);
+                string bound = split2[1].Replace(',', '.');
+                string[] split3 = bound.Split('/');
+                e.upperSize = Convert.ToDecimal(split3[0]);
+                e.lowerSize = Convert.ToDecimal(split3[1]);
+            }
+            else
+            {
+                e.baseSize = Convert.ToDecimal(origin);
+                e.upperSize = 0;
+                e.lowerSize = 0;
+            }
+            return e;
+        }
+        /**
+         * 输入mtext的文本,返回线性尺寸数据
+         */
+        public SizedElement ExtractLineFromString(string text)
+        {
+            SizedElement e = new SizedElement();
+            text = text.Replace(',', '.').Replace(" ", "");
+            if (text.Contains('+') && text.Contains('/'))
+            {
+                string[] split = text.Split('+');
+                e.baseSize = Convert.ToDecimal(split[0]);
+                string[] split2 = split[1].Split('/');
+                e.upperSize = Convert.ToDecimal(split2[0]);
+                e.lowerSize = Convert.ToDecimal(split2[1]);
+            }
+            else
+            {
+                e.baseSize = Convert.ToDecimal(text);
+                e.upperSize = 0;
+                e.lowerSize = 0;
+            }
+            return e;
+        }
+        /**
+         * 输入转角标注，输出尺寸数据
+         */
+        public SizedElement ExtractRotatedDimensionFromEntity(RotatedDimension rotatedDimension)
+        {
+            SizedElement ele = new SizedElement();
+            if (rotatedDimension.Prefix == "%%c" || rotatedDimension.Prefix == "%%C")
+            {
+                ele.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;//直径
+            }
+            else
+            {
+                ele.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.LINE;//直线
+            }
+            ele.baseSize = Convert.ToDecimal(rotatedDimension.Measurement);
+            if (rotatedDimension.Dimtol)
+            {
+                ele.upperSize = Convert.ToDecimal(rotatedDimension.Dimtp);
+                ele.lowerSize = Convert.ToDecimal(-rotatedDimension.Dimtm);
+            }
+            else
+            {
+                ele.upperSize = 0;
+                ele.lowerSize = 0;
+
+            }
+            return ele;
+        }
+        /**
+         * 输入半径标注，输出半径数据
+         */
+        public SizedElement ExtractRadialDimensionFromEntity(RadialDimension radialDimension)
+        {
+            SizedElement element = new SizedElement();
+            element.baseSize = Convert.ToDecimal(radialDimension.Measurement);
+            element.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.ANGLE;
+            if (radialDimension.Dimtol)
+            {
+                element.upperSize = Convert.ToDecimal(radialDimension.Dimtp);
+                element.lowerSize = Convert.ToDecimal(-radialDimension.Dimtm);
+            }
+            else
+            {
+                element.upperSize = 0;
+                element.lowerSize = 0;
+            }
+            return element;
+        }
+        /**
+         * 输入直径标注，输出直径数据
+         */
+        public SizedElement ExtractDiametricDimensionFromEntity(DiametricDimension dDimension)
+        {
+            SizedElement element2 = new SizedElement();
+            element2.baseSize = Convert.ToDecimal(dDimension.Measurement);
+            element2.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
+            if (dDimension.Dimtol)
+            {
+                element2.upperSize = Convert.ToDecimal(dDimension.Dimtp);
+                element2.lowerSize = Convert.ToDecimal(-dDimension.Dimtm);
+            }
+            else
+            {
+                element2.upperSize = 0;
+                element2.lowerSize = 0;
+            }
+            return element2;
+        }
+        /**
+         * 是否为未注倒角内容
+         */
+        public bool isUndeclaredChamfer(string text)
+        {
+            if (text.Length == 0) return false;
+            List<Regex> regList = new List<Regex>();
+            regList.Add(new Regex("[\\d]+\\.*[\\d]*[^0-9][\\d]+\\.*[\\d]*°")); // 1.2 ×25°这种  前后均支持小数点
+            regList.Add(new Regex("C\\d+\\.*[\\d]*")); //支持C加数值的组合，支持小数
+            regList.Add(new Regex("R\\d+\\.*[\\d]*"));//支持R加数值的组合，支持小数
+            try
+            {
+                bool result = regList.Exists(x => x.IsMatch(text));
+                return result;
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
+            }
+        }
+        /**
+         * 是否为行位公差数据
+         */
+        public bool isGeometricalTolerance(string text)
+        {
+            if (text.Length == 0) return false;
+            Regex reg = new Regex("[a-krtu]\\d+\\.*[\\d]*[A-Z]"); //支持的小写字母a-k r t u 开头接数字 再接大写字母的情况
+            try
+            {
+                bool result = reg.IsMatch(text);
+                return result;
+            }
+            catch(RegexMatchTimeoutException)
+            {
+                return false;
+            }
+        }
+        /**
+         * 是否为表面粗糙度
+         */
+        public bool isSurfaceRoughness(string text)
+        {
+            if (text.Length == 0) return false;
+            Regex reg = new Regex("Ra\\s*\\d+\\.*[\\d]*"); //Ra开头加数值
+            try
+            {
+                bool result = reg.IsMatch(text);
+                return result;
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
+            }
+        }
+        /**
+         * 是否为线性尺寸
+         */
+        public bool isLineSize(string text)
+        {
+            //几种情况： 1.整数 2 小数 3 小数点换逗号 4 存在上下 如 3.4 
+
+            //1. 小数点换逗号, 同时去掉空格
+            text = text.Replace(',', '.').Replace(" ", "");
+            try
+            {
+                //2.整数 小数可直接转成功，返回true
+                Convert.ToDecimal(text);
+                return true;
+            }
+            catch (FormatException)
+            {
+                if (text.Contains('+') && text.Contains('/'))
+                {
+                    string[] split = text.Split('+');
+                    Convert.ToDecimal(split[0]);
+                    string[] split2 = split[1].Split('/');
+                    Convert.ToDecimal(split2[0]);
+                    Convert.ToDecimal(split2[1]);
+                    return true;
+                }
+                return false;
+            }
+            catch (System.Exception exception) when (exception is OverflowException || exception is FormatException)
+            {
+                return false;
+            }
+
+        }
+
         public void generatePingCeTable(SelectionSet sSet)
         {
             List<SizedElement> ses = new List<SizedElement>();
             Dictionary<string, int> srs = new Dictionary<string, int>();
             //List<SurfaceRoughness> srs = new List<SurfaceRoughness>();
-            List<OtherRequirement> ors = new List<OtherRequirement>();
+            //List<OtherRequirement> ors = new List<OtherRequirement>();
+            int UndeclaredChamferCount = 0;
             List<GeometricalTolerance> gts = new List<GeometricalTolerance>();
             List<SafetyRequirement> secs = new List<SafetyRequirement>();
 
@@ -99,78 +331,29 @@ namespace acad
                     {
                         case "MText":
                             MText mtext = (MText)ent;
-
+                            //角度尺寸，带°
                             if (mtext.Contents.Contains(TextSpecialSymbol.Degree))
                             {
-                                SizedElement e = new SizedElement();
-                                e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.ANGLE;
-                                e.baseSize = Convert.ToDecimal(mtext.Contents.Replace(TextSpecialSymbol.Degree, ""));
+                                SizedElement e = ExtractAngleFromString(mtext.Contents);
                                 ses.Add(e);
-
                             }
-                            else if (mtext.Text.Contains("∅"))
+                            //直径尺寸
+                            else if (mtext.Text.Contains("∅")) //包含直径符号，存在直径符号开头和 前置有数值倍数的情况
                             {
                                 if (mtext.Text.StartsWith("∅"))
                                 {
-                                    SizedElement e = new SizedElement();
-                                    e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
-                                    //格式："%%C{\\Ftxt,@extfont2|c134;15.6}"
-
-
-                                    string origin = mtext.Text.Substring(1);
-                                    if (origin.Contains('+') || origin.Contains('-') || origin.Contains('/'))
-                                    {
-                                        string[] split2 = origin.Split('+');
-                                        e.baseSize = Convert.ToDecimal(split2[0]);
-                                        string bound = split2[1].Replace(',', '.');
-                                        string[] split3 = bound.Split('/');
-                                        e.upperSize = Convert.ToDecimal(split3[0]);
-                                        e.lowerSize = Convert.ToDecimal(split3[1]);
-
-                                    }
-                                    else
-                                    {
-                                        e.baseSize = Convert.ToDecimal(origin);
-                                        e.upperSize = 0;
-                                        e.lowerSize = 0;
-                                      
-
-                                    }
+                                    SizedElement e = ExtractDiameterFromString(mtext.Text.Substring(1));
                                     ses.Add(e);
                                 }
                                 else
                                 {
-                                    //1×{\\Ftxt,@extfont2 | c134; 0.5}
-                                    //"6×∅22+0,15/ 0"  text
-                                    //"6×∅22+0,15/ 0"
-
-                                    //{\\fSimSun|b0|i0|c134|p2;6×}∅22{\\H0.6x;\\S+0,15^ 0;}
-                                    SizedElement e = new SizedElement();
-                                    e.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
                                     string[] split1 = mtext.Text.Split('∅');
-
                                     decimal count = Convert.ToDecimal(split1[0].ExtractNumber());
-                                    string origin = split1[1];
-                                    if (origin.Contains('+') || origin.Contains('-') || origin.Contains('/'))
-                                    {
-                                        string[] split2 = origin.Split('+');
-                                        e.baseSize = Convert.ToDecimal(split2[0]);
-                                        string bound = split2[1].Replace(',', '.');
-                                        string[] split3 = bound.Split('/');
-                                        e.upperSize = Convert.ToDecimal(split3[0]);
-                                        e.lowerSize = Convert.ToDecimal(split3[1]);
-
-                                    }
-                                    else
-                                    {
-                                        e.baseSize = Convert.ToDecimal(origin);
-                                        e.upperSize = 0;
-                                        e.lowerSize = 0;
-                                    }
+                                    SizedElement e = ExtractDiameterFromString(split1[1]);
                                     ses.Add(e);
                                 }
-                                break;
                             }
+                            //表面粗糙度
                             else if (mtext.Text.StartsWith("Ra"))
                             {
                                 string RoughnessValue = mtext.Text.Substring(2);
@@ -182,108 +365,100 @@ namespace acad
                                 {
                                     srs.Add(RoughnessValue, 1);
                                 }
-                                //SurfaceRoughness sr = new SurfaceRoughness();
-                                //sr.RoughnessType = "Ra";
-                                //sr.RoughnessValue = mtext.Text.Substring(2);
-                                //srs.Add(sr);
-
                             }
+                            //半径尺寸
                             else if (mtext.Text.StartsWith("R"))
                             {
                                 SizedElement e2 = new SizedElement();
                                 e2.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.RADIAL;
                                 e2.baseSize = Convert.ToDecimal(mtext.Text.Substring(1));
                                 ses.Add(e2);
-
                             }
-                            //else if (mtext.Text.Contains("min") || mtext.Text.Contains("max"))
-                            //{
-                            //    SurfaceRoughness sr = new SurfaceRoughness();
-                            //    sr.RoughnessType = "Ra";
-                            //    sr.RoughnessValue = mtext.Text;
-                            //    srs.Add(sr);
-                            //}
-                            else if (mtext.Text.Contains("技术要求"))
+                            //未注倒角
+                            else if (isUndeclaredChamfer(mtext.Text))
                             {
-                                OtherRequirement oreq = new OtherRequirement();
-                                oreq.requirement = mtext.Text;
-                                ors.Add(oreq);
+                                UndeclaredChamferCount += 1;
                             }
-                            else
+                            //线性尺寸
+                            else if (isLineSize(mtext.Text))
                             {
-                                //OtherRequirement oreq = new OtherRequirement();
-                                //oreq.requirement = mtext.Text;
-                                //ors.Add(oreq);
+                                SizedElement e3 = ExtractLineFromString(mtext.Text);
+                                ses.Add((e3));
                             }
-
                             break;
-                        case "RotatedDimension"://转角标注
-                                                //Dimtm Specifies the minimum tolerance limit for dimension text. 下限
-                                                //Dimtp Specifies the maximum tolerance limit for dimension text. 上限
+                        case "DBText":
+                            DBText dtext = (DBText)ent;
+                            string text = dtext.TextString;
+                            if (text.Contains(TextSpecialSymbol.Degree))
+                            {
+                                SizedElement e = ExtractAngleFromString(text);
+                                ses.Add(e);
+                            }
+                            //直径尺寸
+                            else if (text.Contains("∅")) //包含直径符号，存在直径符号开头和 前置有数值倍数的情况
+                            {
+                                if (text.StartsWith("∅"))
+                                {
+                                    SizedElement e = ExtractDiameterFromString(text.Substring(1));
+                                    ses.Add(e);
+                                }
+                                else
+                                {
+                                    string[] split1 = text.Split('∅');
+                                    decimal count = Convert.ToDecimal(split1[0].ExtractNumber());
+                                    SizedElement e = ExtractDiameterFromString(split1[1]);
+                                    ses.Add(e);
+                                }
+                            }
+                            //表面粗糙度
+                            else if (text.StartsWith("Ra"))
+                            {
+                                string RoughnessValue = text.Substring(2);
+                                if (srs.ContainsKey(RoughnessValue))
+                                {
+                                    srs[RoughnessValue] = srs[RoughnessValue] + 1;
+                                }
+                                else
+                                {
+                                    srs.Add(RoughnessValue, 1);
+                                }
+                            }
+                            //半径尺寸
+                            else if (text.StartsWith("R"))
+                            {
+                                SizedElement e2 = new SizedElement();
+                                e2.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.RADIAL;
+                                e2.baseSize = Convert.ToDecimal(text.Substring(1));
+                                ses.Add(e2);
+                            }
+                            //未注倒角
+                            else if (isUndeclaredChamfer(text))
+                            {
+                                UndeclaredChamferCount += 1;
+                            }
+                            //线性尺寸
+                            else if (isLineSize(text))
+                            {
+                                SizedElement e3 = ExtractLineFromString(text);
+                                ses.Add((e3));
+                            }
+                            break;
+                        case "RotatedDimension"://转角标注                         
                             RotatedDimension rotatedDimension = (RotatedDimension)ent;
-
-                            SizedElement ele = new SizedElement();
-                            if (rotatedDimension.Prefix == "%%c")
-                            {
-                                ele.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;//直径
-                            }
-                            else
-                            {
-                                ele.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.LINE;//直线
-                            }
-                            ele.baseSize = Convert.ToDecimal(rotatedDimension.Measurement);
-                            if (rotatedDimension.Dimtol)
-                            {
-                                ele.upperSize = Convert.ToDecimal(rotatedDimension.Dimtp);
-                                ele.lowerSize = Convert.ToDecimal(-rotatedDimension.Dimtm);
-
-                            }
-                            else
-                            {
-                                ele.upperSize = 0;
-                                ele.lowerSize = 0;
-
-                            }
+                            SizedElement ele =  ExtractRotatedDimensionFromEntity(rotatedDimension);
                             ses.Add(ele);
-
-                            //ed.WriteMessage("rotatedDimension" + Convert.ToDecimal(rotatedDimension.Measurement) + ", upper:" + rotatedDimension.Dimtp + ",lowder:" + rotatedDimension.Dimtm + "\n");
                             break;
                         case "RadialDimension"://角度标注
                             RadialDimension rdimension = (RadialDimension)ent;
-                            SizedElement element1 = new SizedElement();
-                            element1.baseSize = Convert.ToDecimal(rdimension.Measurement);
-                            element1.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.ANGLE;
-                            if (rdimension.Dimtol)
-                            {
-                                element1.upperSize = Convert.ToDecimal(rdimension.Dimtp);
-                                element1.lowerSize = Convert.ToDecimal(-rdimension.Dimtm);
-                            }
-                            else
-                            {
-                                element1.upperSize = 0;
-                                element1.lowerSize = 0;
-                            }
+                            SizedElement element1 = ExtractRadialDimensionFromEntity(rdimension);
                             ses.Add(element1);
                             break;
-                        case "DiametricDimension":
+                        case "DiametricDimension": //直径标注
                             DiametricDimension dDimension = (DiametricDimension)ent;
-                            SizedElement element2 = new SizedElement();
-                            element2.baseSize = Convert.ToDecimal(dDimension.Measurement);
-                            element2.sizeType = ELEMENT_SIZED_ELEMENT_SUB_TYPE.DIAMETER;
-                            if (dDimension.Dimtol)
-                            {
-                                element2.upperSize = Convert.ToDecimal(dDimension.Dimtp);
-                                element2.lowerSize = Convert.ToDecimal(-dDimension.Dimtm);
-                            }
-                            else
-                            {
-                                element2.upperSize = 0;
-                                element2.lowerSize = 0;
-                            }
+                            SizedElement element2 = ExtractDiametricDimensionFromEntity(dDimension);
                             ses.Add(element2);
-
                             break;
-                        case "FeatureControlFrame":
+                        case "FeatureControlFrame": //形位公差
                             FeatureControlFrame featureControlFrame = (FeatureControlFrame)ent;
                             GeometricalTolerance gt = new GeometricalTolerance();
                             string rawText = featureControlFrame.Text;
@@ -296,27 +471,63 @@ namespace acad
                             gt.TonerancePrecision = finalVal;
                             gt.ToneranceType = featureControlFrame.Text.Substring(7, 1);
                             gts.Add(gt);
-
                             break;
-                        case "BlockReference":
+                        case "BlockReference": //块参照
                             BlockReference blockReference = (BlockReference)ent;
+
+                            DBObjectCollection entitySets = new DBObjectCollection();
+                            ent.Explode(entitySets);
+                            //提取块参照中所有文字内容
+                            string blockText = "";
+                            foreach (Entity explodedObj in entitySets)
+                            {
+                                if (explodedObj.GetType() == typeof(MText)) //多行文字
+                                {
+                                    blockText += ((MText)explodedObj).Text;
+                                }
+                                if(explodedObj.GetType() == typeof(DBText))//单行文字
+                                {
+                                    blockText += ((DBText)explodedObj).TextString;
+                                }
+                            }
                             
+                            //根据文字内容符合的标注格式模式进行匹配处理。转角标注未打包成块参照，仍按上面的方式进行解析
+                            if (isUndeclaredChamfer(blockText)) //未注倒角
+                            {
+                                UndeclaredChamferCount += 1;
+                            }else if (isGeometricalTolerance(blockText)) //行位公差
+                            {
+                                GeometricalTolerance gt1 = new GeometricalTolerance();
+                                gt1.ToneranceType = blockText.Substring(0, 1);
+                                gt1.TonerancePrecision = blockText.Substring(1);
+                                gts.Add(gt1);
+                            }else if (isSurfaceRoughness(blockText)) //表面粗糙度
+                            {
+                                string RoughnessValue = blockText.Substring(2).Trim();
+                                if (srs.ContainsKey(RoughnessValue))
+                                {
+                                    srs[RoughnessValue] = srs[RoughnessValue] + 1;
+                                }
+                                else
+                                {
+                                    srs.Add(RoughnessValue, 1);
+                                }
+                            }
                             break;
                         default:
-                            //ed.WriteMessage(ent.ToString() + "\n");
                             break;
                     }
                     ent.Dispose();
                     trans.Commit();
-                    
                 }
             }
             Element element = new Element();
             element.sizedElements = ses.ToArray();
             //element.surfaceRoughnesses = srs.ToArray();
             element.surfaceRoughnesses = srs;
-            element.otherRequirements = ors.ToArray();
+            //element.otherRequirements = ors.ToArray();
             element.geometricalTolerances = gts.ToArray();
+            element.UndeclaredChamferCount = UndeclaredChamferCount;
             element.safetyRequirements = secs.ToArray();
             //this.SaveElementToExcel(element);
             ComponentTool tool = new ComponentTool();
@@ -491,6 +702,7 @@ namespace acad
 
         public SizedElement[] sizedElements;
         public GeometricalTolerance[] geometricalTolerances;
+        public int UndeclaredChamferCount;
         //public SurfaceRoughness[] surfaceRoughnesses;
         public Dictionary<string, int> surfaceRoughnesses;
         public OtherRequirement[] otherRequirements;

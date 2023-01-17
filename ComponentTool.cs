@@ -137,7 +137,7 @@ namespace acad
             //}
             sqls.Add($"insert into t_component_size" +
                     $"(ComponentId,FirstType,UnDeclaredChamferCount) values(" +
-                    $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.OTHER},0" +
+                    $"{ComponentId},{(int)ELEMENT_FIRST_TYPE.OTHER},{e.UndeclaredChamferCount}" +
                     $")");
             executeInsert(sqls.ToArray());
         }
